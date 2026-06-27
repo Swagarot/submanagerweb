@@ -45,6 +45,12 @@
       "name": "Internet",
       "cost": 120.0,
       "type": "Monthly"
+    },
+    {
+      "name": "test",
+      "cost": 179.68,
+      "type": "Digital/Physical Subscription",
+      "url": ""
     }
   ],
   "Miscellaneous": [
