@@ -1,0 +1,62 @@
+{
+  "Housing": [
+    {
+      "name": "Rent",
+      "cost": 2800.0,
+      "type": "Monthly"
+    },
+    {
+      "name": "Home Insurance",
+      "cost": 1200.0,
+      "type": "Yearly"
+    }
+  ],
+  "Food": [
+    {
+      "name": "Groceries",
+      "cost": 900.0,
+      "type": "Monthly"
+    },
+    {
+      "name": "Dining Out",
+      "cost": 250.0,
+      "type": "Monthly"
+    }
+  ],
+  "Transportation": [
+    {
+      "name": "Public Transit Pass",
+      "cost": 150.0,
+      "type": "Monthly"
+    },
+    {
+      "name": "Car Insurance",
+      "cost": 2200.0,
+      "type": "Yearly"
+    }
+  ],
+  "Utilities": [
+    {
+      "name": "Electricity",
+      "cost": 320.0,
+      "type": "Monthly"
+    },
+    {
+      "name": "Internet",
+      "cost": 120.0,
+      "type": "Monthly"
+    }
+  ],
+  "Miscellaneous": [
+    {
+      "name": "Gym Membership",
+      "cost": 39.9,
+      "type": "Monthly"
+    },
+    {
+      "name": "Streaming Services",
+      "cost": 55.0,
+      "type": "Monthly"
+    }
+  ]
+}
