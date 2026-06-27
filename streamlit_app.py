@@ -27,6 +27,7 @@ Design decisions:
 
 import streamlit as st
 import json
+import os
 import pandas as pd
 import io
 import urllib.request
@@ -36,6 +37,80 @@ import dummy_manager
 st.set_page_config(page_title="Expense Manager Web", page_icon="🎫")
 
 EXPENSE_TYPE_OPTIONS = ["One-time", "Monthly", "Yearly","Digital/Physical Subscription"]
+
+# Path to the JSON file used for persistence. Override with the DATA_FILE
+# environment variable (the Docker setup points this at a mounted volume so
+# data survives container restarts). Defaults to a file next to this script.
+DATA_FILE = os.environ.get(
+    "DATA_FILE",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "expenses.json"),
+)
+
+# Separate path for the dummy/sample dataset. This is read ONLY when the user
+# clicks a button in the Dummy Data section — never loaded automatically at
+# startup. Override with the DUMMY_FILE environment variable.
+DUMMY_FILE = os.environ.get(
+    "DUMMY_FILE",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "dummydata.json"),
+)
+
+DEFAULT_EXPENSES = {
+    "Housing": [],
+    "Food": [],
+    "Transportation": [],
+    "Utilities": [],
+    "Miscellaneous": [],
+}
+
+
+def load_expenses():
+    """Load the expenses dict from DATA_FILE, or return defaults if missing.
+
+    Called once at startup. Any read/parse error falls back to the empty
+    default structure so the app always starts in a usable state.
+    """
+    try:
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            return data
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+    return {k: list(v) for k, v in DEFAULT_EXPENSES.items()}
+
+
+def save_expenses():
+    """Write the current expenses to DATA_FILE atomically.
+
+    We write to a temp file then replace, so a crash mid-write can't corrupt
+    the existing data file.
+    """
+    try:
+        os.makedirs(os.path.dirname(DATA_FILE) or ".", exist_ok=True)
+        tmp = DATA_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(st.session_state.expenses, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, DATA_FILE)
+    except OSError as e:
+        st.warning(f"Could not save data to {DATA_FILE}: {e}")
+
+
+def load_dummy():
+    """Load the dummy dataset from DUMMY_FILE.
+
+    Falls back to the hardcoded `dummy_manager.dummy_data` if the file is
+    missing or invalid, so the dummy buttons always work. Returns None only if
+    nothing usable is available.
+    """
+    try:
+        with open(DUMMY_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            return data
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+    return dummy_manager.dummy_data
+
 
 @st.cache_data(ttl=300)
 def get_live_exchange_rates():
@@ -79,13 +154,7 @@ def ensure_state():
     global variables / module-level state you'd use in a normal script.
     """
     if "expenses" not in st.session_state:
-        st.session_state.expenses = {
-            "Housing": [],
-            "Food": [],
-            "Transportation": [],
-            "Utilities": [],
-            "Miscellaneous": [],
-        }
+        st.session_state.expenses = load_expenses()
     # No persistent page state needed: the UI uses native Streamlit tabs.
 
 
@@ -235,16 +304,19 @@ def duplicate_expense(category, index, new_name):
 
 
 def replace_with_dummy():
-    """Replace current data with `dummy_manager.dummy_data`.
+    """Replace current data with the dummy dataset from DUMMY_FILE.
 
+    Only runs when the user clicks the button in the Dummy Data section.
     CLI analog: reassigning the `expenses` variable to the dummy dict.
     """
+    dummy = load_dummy()
     st.session_state.expenses.clear()
-    st.session_state.expenses.update(dummy_manager.dummy_data)
+    st.session_state.expenses.update({k: [item.copy() for item in v] for k, v in dummy.items()})
 
 
 def append_dummy():
-    for category, items in dummy_manager.dummy_data.items():
+    dummy = load_dummy()
+    for category, items in dummy.items():
         st.session_state.expenses.setdefault(category, [])
         st.session_state.expenses[category].extend([item.copy() for item in items])
 
@@ -567,14 +639,24 @@ def main():
 
     with tabs[5]:
         st.header("Dummy Data Options")
-        st.button("Replace with dummy data", key="replace_dummy", on_click=do_replace_with_dummy)
-        st.button("Append dummy data", key="append_dummy", on_click=do_append_dummy)
+        st.caption(f"Dummy data is read from: `{DUMMY_FILE}`")
+        if os.path.exists(DUMMY_FILE):
+            st.info("Dummy data file found. Use a button below to load it.")
+        else:
+            st.warning("Dummy data file not found — buttons fall back to the built-in sample data.")
+
+        c1, c2 = st.columns(2)
+        c1.button("Load dummy data from file (replace)", key="replace_dummy", on_click=do_replace_with_dummy)
+        c2.button("Load dummy data from file (append)", key="append_dummy", on_click=do_append_dummy)
 
         if st.session_state.get("dummy_action") == "replaced":
-            st.success("Replaced with dummy data")
+            st.success("Replaced current data with dummy data from file")
         elif st.session_state.get("dummy_action") == "appended":
-            st.success("Appended dummy data")
-    
+            st.success("Appended dummy data from file")
+
+    # Persist after every run. Streamlit reruns the whole script on each
+    # interaction, so this reliably captures any add/edit/delete/import.
+    save_expenses()
 
 
 if __name__ == "__main__":
